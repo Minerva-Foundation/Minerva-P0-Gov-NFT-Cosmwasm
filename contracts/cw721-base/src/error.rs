@@ -14,4 +14,7 @@ pub enum ContractError {
 
     #[error("Cannot set approval that is already expired")]
     Expired {},
+
+    #[error("Not allowed to transfer")]
+    TransferUnallowed{},
 }

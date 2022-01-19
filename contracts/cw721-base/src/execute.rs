@@ -35,6 +35,7 @@ where
         self.contract_info.save(deps.storage, &info)?;
         let minter = deps.api.addr_validate(&msg.minter)?;
         self.minter.save(deps.storage, &minter)?;
+        self.allow_transfer.save(deps.storage, &false)?;
         Ok(Response::default())
     }
 
@@ -47,6 +48,7 @@ where
     ) -> Result<Response<C>, ContractError> {
         match msg {
             ExecuteMsg::Mint(msg) => self.mint(deps, env, info, msg),
+            ExecuteMsg::AllowTransfers{} => self.allow_transfers(deps, info),
             ExecuteMsg::Approve {
                 spender,
                 token_id,
@@ -248,6 +250,17 @@ where
     T: Serialize + DeserializeOwned + Clone,
     C: CustomMsg,
 {
+    pub fn allow_transfers(
+        &self,
+        deps: DepsMut,
+        info: MessageInfo
+    ) -> Result<Response<C>, ContractError> {
+        self.allow_transfer.save(deps.storage, &true);
+    
+        Ok(Response::new()
+            .add_attribute("sending allowance", "Now transferrable"))
+    }
+
     pub fn _transfer_nft(
         &self,
         deps: DepsMut,
@@ -345,33 +358,39 @@ where
         info: &MessageInfo,
         token: &TokenInfo<T>,
     ) -> Result<(), ContractError> {
-        // owner can send
-        if token.owner == info.sender {
-            return Ok(());
-        }
-
-        // any non-expired token approval can send
-        if token
-            .approvals
-            .iter()
-            .any(|apr| apr.spender == info.sender && !apr.is_expired(&env.block))
-        {
-            return Ok(());
-        }
-
-        // operator can send
-        let op = self
-            .operators
-            .may_load(deps.storage, (&token.owner, &info.sender))?;
-        match op {
-            Some(ex) => {
-                if ex.is_expired(&env.block) {
-                    Err(ContractError::Unauthorized {})
-                } else {
-                    Ok(())
-                }
+        let al = self.allow_transfer.may_load(deps.storage)?;
+        if al {
+            // owner can send
+            if token.owner == info.sender {
+                return Ok(());
             }
-            None => Err(ContractError::Unauthorized {}),
+
+            // any non-expired token approval can send
+            if token
+                .approvals
+                .iter()
+                .any(|apr| apr.spender == info.sender && !apr.is_expired(&env.block))
+            {
+                return Ok(());
+            }
+
+            // operator can send
+            let op = self
+                .operators
+                .may_load(deps.storage, (&token.owner, &info.sender))?;
+            match op {
+                Some(ex) => {
+                    if ex.is_expired(&env.block) {
+                        Err(ContractError::Unauthorized {})
+                    } else {
+                        Ok(())
+                    }
+                }
+                None => Err(ContractError::Unauthorized {}),
+            }
+        } else {
+            return Err(ContractError::TransferUnallowed {});
         }
+        
     }
 }

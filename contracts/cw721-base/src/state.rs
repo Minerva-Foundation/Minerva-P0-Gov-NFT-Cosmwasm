@@ -15,6 +15,7 @@ where
     pub contract_info: Item<'a, ContractInfoResponse>,
     pub minter: Item<'a, Addr>,
     pub token_count: Item<'a, u64>,
+    pub allow_transfer: Item<'a, bool>,
     /// Stored as (granter, operator) giving operator full control over granter's account
     pub operators: Map<'a, (&'a Addr, &'a Addr), Expiration>,
     pub tokens: IndexedMap<'a, &'a str, TokenInfo<T>, TokenIndexes<'a, T>>,
@@ -42,6 +43,7 @@ where
             "operators",
             "tokens",
             "tokens__owner",
+            "allow_transfer"
         )
     }
 }
@@ -57,6 +59,7 @@ where
         operator_key: &'a str,
         tokens_key: &'a str,
         tokens_owner_key: &'a str,
+        allow_transfer_key: &'a str,
     ) -> Self {
         let indexes = TokenIndexes {
             owner: MultiIndex::new(token_owner_idx, tokens_key, tokens_owner_key),
@@ -65,6 +68,7 @@ where
             contract_info: Item::new(contract_key),
             minter: Item::new(minter_key),
             token_count: Item::new(token_count_key),
+            allow_transfer: Item::new(allow_transfer_key),
             operators: Map::new(operator_key),
             tokens: IndexedMap::new(tokens_key, indexes),
             _custom_response: PhantomData,
