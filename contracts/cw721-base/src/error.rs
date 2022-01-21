@@ -17,4 +17,7 @@ pub enum ContractError {
 
     #[error("Not allowed to transfer")]
     TransferUnallowed{},
+
+    #[error("Only minter can allow transfers")]
+    AllowTransfersUnallowed{},
 }

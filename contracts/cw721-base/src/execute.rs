@@ -8,7 +8,7 @@ use cw721::{ContractInfoResponse, CustomMsg, Cw721Execute, Cw721ReceiveMsg, Expi
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MintMsg};
-use crate::state::{Approval, Cw721Contract, TokenInfo};
+use crate::state::{Approval, Cw721Contract, TokenInfo, TRANSFERALLOWANCE, TransferAllowance};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:cw721-base";
@@ -35,7 +35,16 @@ where
         self.contract_info.save(deps.storage, &info)?;
         let minter = deps.api.addr_validate(&msg.minter)?;
         self.minter.save(deps.storage, &minter)?;
-        self.allow_transfer.save(deps.storage, &false)?;
+
+        let transfer_allowance = TransferAllowance {
+            transfer_allowed: false,
+        };
+        TRANSFERALLOWANCE.save(deps.storage, &transfer_allowance)?;
+
+        // TRANSFERALLOWANCE.update(deps.storage, |mut transferAllowance| -> StdResult<_> {
+        //     transferAllowance.transfer_allowed = false;
+        //     Ok(transferAllowance);
+        // })?;
         Ok(Response::default())
     }
 
@@ -250,17 +259,6 @@ where
     T: Serialize + DeserializeOwned + Clone,
     C: CustomMsg,
 {
-    pub fn allow_transfers(
-        &self,
-        deps: DepsMut,
-        info: MessageInfo
-    ) -> Result<Response<C>, ContractError> {
-        self.allow_transfer.save(deps.storage, &true);
-    
-        Ok(Response::new()
-            .add_attribute("sending allowance", "Now transferrable"))
-    }
-
     pub fn _transfer_nft(
         &self,
         deps: DepsMut,
@@ -277,6 +275,24 @@ where
         token.approvals = vec![];
         self.tokens.save(deps.storage, &token_id, &token)?;
         Ok(token)
+    }
+
+    pub fn allow_transfers(
+        &self,
+        deps: DepsMut,
+        info: MessageInfo
+    ) -> Result<Response<C>, ContractError> {
+        if info.sender == self.minter.load(deps.storage)? {
+            TRANSFERALLOWANCE.update(deps.storage, |mut transfer_allowance| -> Result<_, ContractError> {
+                transfer_allowance.transfer_allowed = false;
+                Ok(transfer_allowance)
+            })?;
+
+            Ok(Response::new()
+                .add_attribute("sending allowance", "Now transferrable"))
+        } else {
+            Err(ContractError::AllowTransfersUnallowed {})
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -358,8 +374,8 @@ where
         info: &MessageInfo,
         token: &TokenInfo<T>,
     ) -> Result<(), ContractError> {
-        let al = self.allow_transfer.may_load(deps.storage)?;
-        if al {
+        let t_allowed = TRANSFERALLOWANCE.load(deps.storage)?.transfer_allowed;
+        if t_allowed {
             // owner can send
             if token.owner == info.sender {
                 return Ok(());
