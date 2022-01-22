@@ -284,12 +284,19 @@ where
     ) -> Result<Response<C>, ContractError> {
         if info.sender == self.minter.load(deps.storage)? {
             TRANSFERALLOWANCE.update(deps.storage, |mut transfer_allowance| -> Result<_, ContractError> {
-                transfer_allowance.transfer_allowed = false;
+                transfer_allowance.transfer_allowed = true;
                 Ok(transfer_allowance)
             })?;
 
+            let new_val: &str;
+            if TRANSFERALLOWANCE.load(deps.storage)?.transfer_allowed {
+                new_val = "true"
+            } else {
+                new_val = "false"
+            }
+
             Ok(Response::new()
-                .add_attribute("sending allowance", "Now transferrable"))
+                .add_attribute("sending allowance", new_val))
         } else {
             Err(ContractError::AllowTransfersUnallowed {})
         }

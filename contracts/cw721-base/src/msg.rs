@@ -127,6 +127,8 @@ pub enum QueryMsg {
 
     // Return the minter
     Minter {},
+
+    // TransferAllowanceState {},
 }
 
 /// Shows who can mint these tokens
@@ -134,3 +136,8 @@ pub enum QueryMsg {
 pub struct MinterResponse {
     pub minter: String,
 }
+
+// #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+// pub struct TransferAllowanceStateResponse {
+//     pub transfer_allowance_state: bool,
+// }

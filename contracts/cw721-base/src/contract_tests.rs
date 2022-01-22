@@ -65,6 +65,60 @@ fn proper_instantiation() {
     let tokens = contract.all_tokens(deps.as_ref(), None, None).unwrap();
     assert_eq!(0, tokens.tokens.len());
 }
+#[test]
+fn transfer_enabling() {
+    let mut deps = mock_dependencies(&[]);
+    let contract = setup_contract(deps.as_mut());
+
+    // Mint a token
+    let token_id = "melt".to_string();
+    let token_uri = "https://www.merriam-webster.com/dictionary/melt".to_string();
+
+    let mint_msg = ExecuteMsg::Mint(MintMsg::<Extension> {
+        token_id: token_id.clone(),
+        owner: String::from("venus"),
+        token_uri: Some(token_uri),
+        extension: None,
+    });
+
+    let minter = mock_info(MINTER, &[]);
+    contract
+        .execute(deps.as_mut(), mock_env(), minter, mint_msg)
+        .unwrap();
+
+    // owner cannot allow transfers
+    let owner = mock_info("venus", &[]);
+    let allow_transfers_msg = ExecuteMsg::AllowTransfers {};
+    let err = contract
+        .execute(deps.as_mut(), mock_env(), owner, allow_transfers_msg)
+        .unwrap_err();
+    assert_eq!(err, ContractError::AllowTransfersUnallowed {});
+
+    // random cannot allow transfers
+    let random = mock_info("random", &[]);
+    let allow_transfers_msg = ExecuteMsg::AllowTransfers {};
+    let err = contract
+        .execute(deps.as_mut(), mock_env(), random, allow_transfers_msg)
+        .unwrap_err();
+    assert_eq!(err, ContractError::AllowTransfersUnallowed {});
+
+    // minter can allow transfers
+    let minter = mock_info(MINTER, &[]);
+    let allow_transfers_msg = ExecuteMsg::AllowTransfers {};
+    contract
+        .execute(deps.as_mut(), mock_env(), minter, allow_transfers_msg)
+        .unwrap();
+
+    // now owner can transfer
+    let owner = mock_info("venus", &[]);
+    let transfer_msg = ExecuteMsg::TransferNft {
+        recipient: String::from("person"),
+        token_id: token_id.clone(),
+    };
+    contract
+        .execute(deps.as_mut(), mock_env(), owner, transfer_msg)
+        .unwrap();
+}
 
 #[test]
 fn minting() {
@@ -173,6 +227,12 @@ fn transferring_nft() {
         token_id: token_id.clone(),
     };
 
+    let minter = mock_info(MINTER, &[]);
+    let allow_transfers_msg = ExecuteMsg::AllowTransfers {};
+    contract
+        .execute(deps.as_mut(), mock_env(), minter, allow_transfers_msg)
+        .unwrap();
+
     let err = contract
         .execute(deps.as_mut(), mock_env(), random, transfer_msg)
         .unwrap_err();
@@ -227,6 +287,12 @@ fn sending_nft() {
         token_id: token_id.clone(),
         msg: msg.clone(),
     };
+
+    let minter = mock_info(MINTER, &[]);
+    let allow_transfers_msg = ExecuteMsg::AllowTransfers {};
+    contract
+        .execute(deps.as_mut(), mock_env(), minter, allow_transfers_msg)
+        .unwrap();
 
     let random = mock_info("random", &[]);
     let err = contract
@@ -305,7 +371,24 @@ fn approving_revoking() {
             .add_attribute("token_id", token_id.clone())
     );
 
+    // random can't transfer as transfers are not allowed
+    let random = mock_info("random", &[]);
+    let transfer_msg = ExecuteMsg::TransferNft {
+        recipient: String::from("person"),
+        token_id: token_id.clone(),
+    };
+    let err = contract
+        .execute(deps.as_mut(), mock_env(), random, transfer_msg)
+        .unwrap_err();
+    assert_eq!(err, ContractError::TransferUnallowed {});
+
     // random can now transfer
+    let minter = mock_info(MINTER, &[]);
+    let allow_transfers_msg = ExecuteMsg::AllowTransfers {};
+    contract
+        .execute(deps.as_mut(), mock_env(), minter, allow_transfers_msg)
+        .unwrap();
+
     let random = mock_info("random", &[]);
     let transfer_msg = ExecuteMsg::TransferNft {
         recipient: String::from("person"),
@@ -314,6 +397,7 @@ fn approving_revoking() {
     contract
         .execute(deps.as_mut(), mock_env(), random, transfer_msg)
         .unwrap();
+
 
     // Approvals are removed / cleared
     let query_msg = QueryMsg::OwnerOf {
@@ -430,6 +514,12 @@ fn approving_all_revoking_all() {
             .add_attribute("sender", "demeter")
             .add_attribute("operator", "random")
     );
+
+    let minter = mock_info(MINTER, &[]);
+    let allow_transfers_msg = ExecuteMsg::AllowTransfers {};
+    contract
+        .execute(deps.as_mut(), mock_env(), minter, allow_transfers_msg)
+        .unwrap();
 
     // random can now transfer
     let random = mock_info("random", &[]);
